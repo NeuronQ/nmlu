@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from qinspect.console import df_peek
+from nmlu.qinspect.console import df_peek
 
 
 INPUT_DIR = './example_data/titanic/'
