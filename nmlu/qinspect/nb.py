@@ -4,9 +4,9 @@ from IPython.display import display
 from .common import df_types_and_stats
 
 
-def display_all(df, max_rows=1000, max_cols=1000):
+def df_display_all(df, max_rows=1000, max_cols=1000):
     with pd.option_context("display.max_rows", max_rows, "display.max_columns", max_cols):
-        print(df)
+        display(df)
 
 
 def df_peek(df: pd.DataFrame, label: str = ''):

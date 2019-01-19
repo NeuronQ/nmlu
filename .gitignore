@@ -110,3 +110,5 @@ examples/.last_checked
 *.sublime-*
 .pycharm
 .idea
+
+_test*

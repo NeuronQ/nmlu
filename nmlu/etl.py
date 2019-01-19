@@ -1,80 +1,166 @@
 import pandas as pd
-from sklearn.utils import shuffle
-from typing import List, Sequence, Tuple
+import numpy as np
+from pandas.api.types import is_string_dtype, is_numeric_dtype
+from typing import Tuple
 
 
-def convert_cats(df: pd.DataFrame, extra_cats={}):
-    """Convert string values and what we know are categories to categorical vars.
+def arr_split(a: np.ndarray, n: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Split array into n and len-n."""
+    return a[:n].copy(), a[n:].copy()
+
+
+def get_sample(df: pd.DataFrame, n: int) -> pd.DataFrame:
+    """Gets a random sample of n rows from df, without replacement."""
+    idxs = sorted(np.random.permutation(len(df))[:n])
+    return df.iloc[idxs].copy()
+
+
+def train_cats(df: pd.DataFrame):
+    """Convert string columns to categorical columns.
 
     Parameters
     ----------
-    df
-    extra_cats : sequence or set of str
-        Extra column names that we want to turn to categories regardless of their actual type.
+    df: MODIFIED
     """
-    for n, c in df.items():
-        if pd.api.types.is_string_dtype(c) or n in extra_cats:
-            df[n] = c.astype('category').cat.as_ordered()
-
-
-def fill_missing(df: pd.DataFrame, how):
-    """Fill missing data for numeric columns.
-    """
-    assert how in {'median'}
     for col_name, col in df.items():
-        if pd.api.types.is_numeric_dtype(col):
-            if pd.isnull(col).sum():
-                if how == 'median':
-                    df[col_name] = col.fillna(col.median())
+        if is_string_dtype(col):
+            df[col_name] = col.astype('category').cat.as_ordered()
 
 
-def numericalize(df: pd.DataFrame, nans_to_zero=True):
-    """Numericalize categories (and optionally get rid of -1's for NaNs)"""
-    for n, c in df.items():
-        if not pd.api.types.is_numeric_dtype(c):
-            df[n] = df[n].cat.codes + 1
-            if nans_to_zero:  # NaN's become -1, so we add 1 to make them 0
-                df[n] += 1
+def apply_cats(df: pd.DataFrame, df_train: pd.DataFrame):
+    """Convert string columns to categorical columns, using same category codes ad in df_train.
 
+    Parameters
+    ----------
+    df: MODIFIED
 
-def train_test_xy_split(
-    df: pd.DataFrame,
-    y_cols: Sequence[str],
-    train_sz: int = 0,
-    train_fr: float = 0.0,
-    shuffle: bool = False,
-    random_sate: int = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Train/test and x/y splitting of df (optionally shuffle).
-
-    Returns
-    -------
-    x_train
-    x_test
-    y_train
-    y_test
+    df_train: checks that each string column also exists in this dataframe, and use the same category codes
     """
-    assert train_sz or train_fr
-    assert not (train_sz and train_fr)
-    if train_fr:  # either five train_sz *or* train_fr, not both
-        assert train_fr > 0 and train_fr <= 1
+    for col_name, col in df.items():
+        if (col_name in df_train.columns) and (df_train[col_name].dtype.name == 'category'):
+            df[col_name] = pd.Categorical(
+                col, categories=df_train[col_name].cat.categories, ordered=True)
 
-    if shuffle:  # NOTE: sklear.utils.shuffle MAY be faster for some data
-        df = df.sample(frac=1, random_sate=random_sate)
 
-    y = df[y_cols]
-    x = df.drop(y_cols, axis=1)
+def fill_missing(df: pd.DataFrame, col_name: str, na_dict: dict = None):
+    """Fill missing data for numeric columns.
 
-    if not train_sz:
-        train_sz = int(len(df) * train_fr)
+    Parameters
+    ----------
+    df: MODIFIED
 
-    x_train = x.iloc[:train_sz]
-    y_train = y.iloc[:train_sz]
-    x_test = x.iloc[train_sz:]
-    y_test = y.iloc[train_sz:]
+    col_name
 
-    if len(y_cols) == 1:
-        y_train = y_train.values[:, 0]
-        y_test = y_test.values[:, 0]
+    na_dict: { col_name (str) -> filler } MODIFIED
+    """
+    na_dict = {} if na_dict is None else na_dict
+    col = df[col_name]
+    if (
+        is_numeric_dtype(col) and
+        (pd.isnull(col).sum() or (col_name in na_dict))
+    ):
+        df[col_name + '_na'] = pd.isnull(col)
+        filler = na_dict[col_name] if col_name in na_dict else col.median()
+        df[col_name] = col.fillna(filler)
+        na_dict[col_name] = filler
+    return na_dict
 
-    return x_train, x_test, y_train, y_test
+
+def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True):
+    """Numericalize categories.
+
+    Parameters
+    ----------
+    df: MODIFIED
+
+    nans_to_zero: if true add 1 to categories to make NaNs turned to -1 be 0
+
+    max_n_cat: max number of categories for a categorical column to be left
+        un-transformed; if it has more than this it get numericalized; by
+        default it's -1 so *all columns get numericalized*
+    """
+    col = df[col_name]
+    if not is_numeric_dtype(col) and len(col.cat.categories) > max_n_cat:
+        df[col_name] = col.cat.codes
+        if nans_to_zero:
+            df[col_name] += 1
+
+
+def proc_df(df: pd.DataFrame,
+            y_fld: str,
+            na_dict: dict = None,
+            skip_flds: list = None,
+            ignore_flds: list = None,
+            max_n_cat: int = -1):
+    """Split response variable, numericalizes df and fill missing values.
+    """
+    if skip_flds is None:
+        skip_flds = []
+    if ignore_flds is None:
+        ignore_flds = []
+    if na_dict is None:
+        na_dict = {}
+
+    assert sum(
+        1 if (
+            is_string_dtype(df[col_name]) and
+            col_name not in skip_flds and
+            col_name not in ignore_flds
+        ) else 0
+        for col_name in df.columns
+    ) == 0, "Expected df to have all string columns converted to categories"
+
+    df = df.copy()  # do not modify passed df
+
+    # set aside ignored fields (to be re-added to result at the end, untouched)
+    ignored_cols = df.loc[:, ignore_flds]
+    df.drop(ignore_flds, axis=1, inplace=True)
+
+    # split off y (and numericalize it if needed)
+    y = None
+    if y_fld:
+        if not is_numeric_dtype(df[y_fld]):
+            df[y_fld] = df[y_fld].cat.codes
+        y = df[y_fld].values
+        skip_flds.append(y_fld)
+
+    df.drop(skip_flds, axis=1, inplace=True)  # drop skip fields
+
+    for col_name in df.columns:
+        fill_missing(df, col_name, na_dict)  # fill missing values
+        numericalize(df, col_name, max_n_cat=max_n_cat)  # numericalize
+
+    # 1-hot encode categorical cols that were not numericalized
+    # (those with <= max_n_cat categories)
+    df = pd.get_dummies(df, dummy_na=True)
+
+    df = pd.concat([ignored_cols, df], axis=1)  # re-add untouched ignored cols
+
+    return df, y, na_dict
+
+
+def add_datepart(df: pd.DataFrame,
+                 fld_name: str,
+                 drop: bool = True,
+                 time: bool = False):
+    """Add extra features derived from date(time).
+    """
+    fld = df[fld_name]
+    fld_dtype = fld.dtype
+    if isinstance(fld_dtype, pd.core.dtypes.dtypes.DatetimeTZDtype):
+        fld_dtype = np.datetime64
+    if not np.issubdtype(fld_dtype, np.datetime64):
+        df[fld_name] = fld = pd.to_datetime(fld, infer_datetime_format=True)
+
+    attr = ['Year', 'Month', 'Week', 'Day', 'Dayofweek', 'Dayofyear', 'Is_month_end',
+            'Is_month_start', 'Is_quarter_end', 'Is_quarter_start', 'Is_year_end', 'Is_year_start']
+    if time:
+        attr = attr + ['Hour', 'Minute', 'Second']
+
+    for n in attr:
+        df[fld_name + n] = getattr(fld.dt, n.lower())
+
+    df[fld_name + 'Elapsed'] = fld.astype(np.int64) // 10 ** 9
+
+    if drop:
+        df.drop(fld_name, axis=1, inplace=True)
