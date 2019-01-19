@@ -1,4 +1,11 @@
+import numpy as np
 import pandas as pd
+from sparklines import sparklines
+
+
+def sparklines_str(col, bins=10):
+    bins = np.histogram(col[col.notnull()], bins=bins)[0]
+    return "".join(sparklines(bins))
 
 
 def df_types_and_stats(df: pd.DataFrame) -> pd.DataFrame:
@@ -12,5 +19,6 @@ def df_types_and_stats(df: pd.DataFrame) -> pd.DataFrame:
         },
         index=df.columns.sort_values()
     )
+    dist = df.agg([sparklines_str]).T.sort_index()
     desc = df.describe(include='all').T.sort_index()
-    return pd.concat([types_and_missing, desc], axis=1)
+    return pd.concat([dist, types_and_missing, desc], axis=1, sort=True)

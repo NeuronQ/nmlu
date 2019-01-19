@@ -87,7 +87,7 @@ def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True):
 
 
 def proc_df(df: pd.DataFrame,
-            y_fld: str,
+            y_fld: str = None,
             na_dict: dict = None,
             skip_flds: list = None,
             ignore_flds: list = None,
