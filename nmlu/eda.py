@@ -60,18 +60,19 @@ def plot_pairs_corr(df, figsize=(18, 16)):
         axes[i, j].annotate("%.3f" % corr[i, j], (0.8, 0.8), xycoords='axes fraction', ha='center', va='center')
 
 
-def show_cat_feature_vs_y(df, fld, y_fld, id_fld=None):
+def show_cat_feature_vs_y(df, fld, y_fld):
+    df = df.reset_index()
     pivot_args = dict(
         data=df, index=fld, columns=y_fld,
         aggfunc='size', fill_value=0,
     )
     tbl_args = pivot_args.copy()
-    if id_fld:  # explicit id field is required to show "All" in table
-        tbl_args.update(aggfunc='count', values=id_fld, margins=True)
+    tbl_args.update(aggfunc='count', values='index', margins=True)
     tbl = pd.pivot_table(**tbl_args)
     print(tbl)
     plot_tbl = pd.pivot_table(**pivot_args)
     plot_tbl.plot.bar()
+    plt.show()
 
 
 def plot_dendrogram(df, figsize=(16, 10)):

@@ -56,8 +56,8 @@ def fill_missing(df: pd.DataFrame, col_name: str, na_dict: dict = None):
     na_dict = {} if na_dict is None else na_dict
     col = df[col_name]
     if (
-        is_numeric_dtype(col) and
-        (pd.isnull(col).sum() or (col_name in na_dict))
+            is_numeric_dtype(col) and
+            (pd.isnull(col).sum() or (col_name in na_dict))
     ):
         df[col_name + '_na'] = pd.isnull(col)
         filler = na_dict[col_name] if col_name in na_dict else col.median()
@@ -86,6 +86,23 @@ def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True):
             df[col_name] += 1
 
 
+def numericalized_df(df, fill_missing=False, nans_to_zero=False):
+    ndf = df.copy()
+    for col_name, col in ndf.items():
+        is_col_numeric = is_numeric_dtype(col)
+        if not is_col_numeric:
+            ndf[col_name] = col.cat.codes
+        if fill_missing and pd.isnull(df[col_name]).sum():
+            if is_col_numeric:
+                filler = ndf[col_name].median()
+            else:
+                filler = ndf[col_name].mode()
+            df[col_name] = df[col_name].fillna(filler)
+        if nans_to_zero:
+            ndf[col_name] += 1
+    return ndf
+
+
 def proc_df(df: pd.DataFrame,
             y_fld: str = None,
             na_dict: dict = None,
@@ -100,12 +117,13 @@ def proc_df(df: pd.DataFrame,
         ignore_flds = []
     if na_dict is None:
         na_dict = {}
+    na_dict_initial = na_dict.copy()
 
     assert sum(
         1 if (
-            is_string_dtype(df[col_name]) and
-            col_name not in skip_flds and
-            col_name not in ignore_flds
+                is_string_dtype(df[col_name]) and
+                col_name not in skip_flds and
+                col_name not in ignore_flds
         ) else 0
         for col_name in df.columns
     ) == 0, "Expected df to have all string columns converted to categories"
@@ -129,6 +147,14 @@ def proc_df(df: pd.DataFrame,
     for col_name in df.columns:
         fill_missing(df, col_name, na_dict)  # fill missing values
         numericalize(df, col_name, max_n_cat=max_n_cat)  # numericalize
+    # if na_dict was passed, make sure result doesn't contain extra _na
+    # columns even if there were missing values in them (otherwise model
+    # would crash on predict since it wasn't expecting them)
+    if len(na_dict_initial.keys()) > 0:
+        df.drop([
+            a + '_na'
+            for a in list(set(na_dict.keys()) - set(na_dict_initial.keys()))
+        ], axis=1, inplace=True)
 
     # 1-hot encode categorical cols that were not numericalized
     # (those with <= max_n_cat categories)

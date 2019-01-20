@@ -75,25 +75,25 @@ def rf_show_plot_fi(model, df, figsize=(12,7)):
     fi.plot('cols', 'imp', 'barh', figsize=figsize, legend=False)
 
 
-def ti_make_readable_contribs(df_raw, cs):
+def ti_make_readable_contribs(df, cs):
     idxs = np.argsort(cs[:, 0])
-    sorted_feats = df_raw.columns[idxs]
+    sorted_feats = df.columns[idxs]
     return [o for o in zip(
         sorted_feats,
-        df_raw.iloc[0][sorted_feats],
+        df.iloc[0][sorted_feats],
         cs[idxs],
     )]
 
 
-def ti_make_explained_predictions_data(df_raw, y_fld, preds, biases, contribs):
-    xcontribs = [ti_make_readable_contribs(df_raw, c) for c in contribs]
+def ti_make_explained_predictions_data(df, preds, contribs):
+    xcontribs = [ti_make_readable_contribs(df, c) for c in contribs]
     preds_dict = [{
-        (df_raw[y_fld].cat.categories[i]) : p
+        i : p
         for i, p in enumerate(pred)
     } for pred in preds]
     return list(zip(preds_dict, xcontribs))
 
 
-def rf_predict_with_explanations(model, x, df_raw, y_fld):
+def rf_predict_with_explanations(model, x):
     preds, biases, contribs = ti.predict(model, x)
-    return ti_make_explained_predictions_data(df_raw, y_fld, preds, biases, contribs)
+    return ti_make_explained_predictions_data(x, preds, contribs)

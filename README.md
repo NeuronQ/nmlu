@@ -1,6 +1,6 @@
 # 𝜈MλU
 
-## nMLU - nANO Machine Learning utilities toolkit
+## NMLU - Nano Machine Learning Utilities toolkit
 
 **W.I.P.**
 
