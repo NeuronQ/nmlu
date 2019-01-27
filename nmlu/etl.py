@@ -66,7 +66,7 @@ def fill_missing(df: pd.DataFrame, col_name: str, na_dict: dict = None):
     return na_dict
 
 
-def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True):
+def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True, no_binary_dummies=False):
     """Numericalize categories.
 
     Parameters
@@ -80,10 +80,14 @@ def numericalize(df: pd.DataFrame, col_name, max_n_cat=-1, nans_to_zero=True):
         default it's -1 so *all columns get numericalized*
     """
     col = df[col_name]
-    if not is_numeric_dtype(col) and len(col.cat.categories) > max_n_cat:
-        df[col_name] = col.cat.codes
-        if nans_to_zero:
-            df[col_name] += 1
+    if not is_numeric_dtype(col):
+        if (
+                len(col.cat.categories) > max_n_cat or
+                (no_binary_dummies and len(col.cat.categories) == 2)
+        ):
+            df[col_name] = col.cat.codes
+            if nans_to_zero:
+                df[col_name] += 1
 
 
 def numericalized_df(df, fill_missing=False, nans_to_zero=False):
@@ -108,7 +112,8 @@ def proc_df(df: pd.DataFrame,
             na_dict: dict = None,
             skip_flds: list = None,
             ignore_flds: list = None,
-            max_n_cat: int = -1):
+            max_n_cat: int = -1,
+            no_binary_dummies=False):
     """Split response variable, numericalizes df and fill missing values.
     """
     if skip_flds is None:
@@ -145,8 +150,10 @@ def proc_df(df: pd.DataFrame,
     df.drop(skip_flds, axis=1, inplace=True)  # drop skip fields
 
     for col_name in df.columns:
-        fill_missing(df, col_name, na_dict)  # fill missing values
-        numericalize(df, col_name, max_n_cat=max_n_cat)  # numericalize
+        # fill missing values
+        fill_missing(df, col_name, na_dict)
+        # numericalize
+        numericalize(df, col_name, max_n_cat=max_n_cat, no_binary_dummies=no_binary_dummies)
     # if na_dict was passed, make sure result doesn't contain extra _na
     # columns even if there were missing values in them (otherwise model
     # would crash on predict since it wasn't expecting them)

@@ -14,8 +14,10 @@ def df_types_and_stats(df: pd.DataFrame) -> pd.DataFrame:
     types_and_missing = pd.DataFrame(
         {
             'type': df.sort_index().dtypes,
-            'missing #': missing,
-            'missing %': missing_pc
+            '#nas': missing,
+            '%nas': missing_pc,
+            'card': df.agg('nunique').sort_index(),
+
         },
         index=df.columns.sort_values()
     )

@@ -1,6 +1,8 @@
-import  pandas as pd
-import numpy as np
 from concurrent.futures import ProcessPoolExecutor
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
 from treeinterpreter import treeinterpreter as ti
 
 
@@ -69,8 +71,10 @@ def rf_feat_importance(model, df):
     ).sort_values('imp', ascending=False)
 
 
-def rf_show_plot_fi(model, df, figsize=(12,7)):
+def rf_show_plot_fi(model, df, figsize=(12,7), top_n=None):
     fi = rf_feat_importance(model, df)
+    if top_n:
+        fi = fi[:top_n]
     print(fi)
     fi.plot('cols', 'imp', 'barh', figsize=figsize, legend=False)
 
@@ -97,3 +101,97 @@ def ti_make_explained_predictions_data(df, preds, contribs):
 def rf_predict_with_explanations(model, x):
     preds, biases, contribs = ti.predict(model, x)
     return ti_make_explained_predictions_data(x, preds, contribs)
+
+
+def plot_train_vs_test(
+        model, x, y,
+        trn_f=0.8, n_runs=5, step=50, start=None,
+        ylim=None
+):
+    if start is None:
+        start = step
+    extra_plot_args = {'ylim': ylim} if ylim else {}
+    test_size = int(len(x) * (1 - trn_f))
+    train_sizes = list(range(start, int(x.shape[0] * trn_f), step))
+    scores_trn = np.zeros((3, len(train_sizes)))
+    scores_val = np.zeros((3, len(train_sizes)))
+    s_trn = np.zeros(n_runs)
+    s_val = np.zeros(n_runs)
+    for i, train_sz in enumerate(train_sizes):
+        for j in range(n_runs):
+            x_trn, x_val, y_trn, y_val = train_test_split(
+                x, y, test_size=test_size)
+            x_trn = x_trn[:train_sz]
+            y_trn = y_trn[:train_sz]
+            model.fit(x_trn, y_trn)
+            s_trn[j] = model.score(x_trn, y_trn)
+            s_val[j] = model.score(x_val, y_val)
+        scores_trn[0, i] = np.mean(s_trn)
+        scores_trn[1, i] = np.min(s_trn)
+        scores_trn[2, i] = np.max(s_trn)
+        scores_val[0, i] = np.mean(s_val)
+        scores_val[1, i] = np.min(s_val)
+        scores_val[2, i] = np.max(s_val)
+        s_trn[:] = 0
+        s_val[:] = 0
+    if ylim is not None:
+        axes = plt.gca()
+        axes.set_ylim(ylim)
+    plt.plot(train_sizes, scores_trn[0, :], color='b', label='train')
+    plt.fill_between(
+        train_sizes, scores_trn[1, :], scores_trn[2, :],
+        facecolor='b', alpha=0.4)
+    plt.plot(train_sizes, scores_val[0, :], color='r', label='test')
+    plt.fill_between(
+        train_sizes, scores_val[1, :], scores_val[2, :],
+        facecolor='r', alpha=0.4)
+    plt.xlabel('train sz')
+    plt.ylabel('score')
+    plt.legend()
+
+
+def plot_train_vs_test_by_param(
+        model_costructor, model_params, param_name, param_vals, x, y,
+        trn_f=0.8, n_runs=10
+):
+    model_params = model_params.copy()
+
+    test_size = int(len(x) * (1 - trn_f))
+
+    scores_trn = np.zeros((3, len(param_vals)))
+    scores_val = np.zeros((3, len(param_vals)))
+
+    s_trn = np.zeros(n_runs)
+    s_val = np.zeros(n_runs)
+
+    for i, val in enumerate(param_vals):
+        for j in range(n_runs):
+            x_trn, x_val, y_trn, y_val = train_test_split(
+                x, y, test_size=test_size)
+
+            model = model_costructor(**model_params, **{param_name: val})
+            model.fit(x_trn, y_trn)
+
+            s_trn[j] = model.score(x_trn, y_trn)
+            s_val[j] = model.score(x_val, y_val)
+
+        scores_trn[0, i] = np.mean(s_trn)
+        scores_trn[1, i] = np.min(s_trn)
+        scores_trn[2, i] = np.max(s_trn)
+        scores_val[0, i] = np.mean(s_val)
+        scores_val[1, i] = np.min(s_val)
+        scores_val[2, i] = np.max(s_val)
+        s_trn[:] = 0
+        s_val[:] = 0
+
+    plt.plot(param_vals, scores_trn[0, :], color='b', label='train')
+    plt.fill_between(
+        param_vals, scores_trn[1, :], scores_trn[2, :],
+        facecolor='b', alpha=0.4)
+    plt.plot(param_vals, scores_val[0, :], color='r', label='test')
+    plt.fill_between(
+        param_vals, scores_val[1, :], scores_val[2, :],
+        facecolor='r', alpha=0.4)
+    plt.ylabel('score')
+    plt.xlabel(param_name)
+    plt.legend()

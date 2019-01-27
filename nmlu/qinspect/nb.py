@@ -16,5 +16,5 @@ def df_peek(df: pd.DataFrame, label: str = ''):
     print("\t> TYPES & STATS:")
     display(df_types_and_stats(df))
     print("\n\t> DATA:")
-    with pd.option_context("display.max_rows", 100, "display.max_columns", 4):
+    with pd.option_context("display.max_rows", 100, "display.max_columns", 10):
         display(df.T)
