@@ -157,7 +157,7 @@ def proc_df(df: pd.DataFrame,
     # if na_dict was passed, make sure result doesn't contain extra _na
     # columns even if there were missing values in them (otherwise model
     # would crash on predict since it wasn't expecting them)
-    if len(na_dict_initial.keys()) > 0:
+    if na_dict is not None:
         df.drop([
             a + '_na'
             for a in list(set(na_dict.keys()) - set(na_dict_initial.keys()))
