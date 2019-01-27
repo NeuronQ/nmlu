@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='nmlu',
-    version='0.8',
+    version='0.10',
     url='https://github.com/NeuronQ/nmlu',
     author='Andrei Anton',
     author_email='io@neuronq.ro',

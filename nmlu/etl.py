@@ -160,14 +160,11 @@ def proc_df(df: pd.DataFrame,
     # if na_dict was passed, make sure result doesn't contain extra _na
     # columns even if there were missing values in them (otherwise model
     # would crash on predict since it wasn't expecting them)
-    # import pdb; pdb.set_trace()
     if na_param_passed:
-        print("--- will remove na cols:", list(set(na_dict.keys()) - set(na_dict_initial.keys())))
         df.drop([
             a + '_na'
             for a in list(set(na_dict.keys()) - set(na_dict_initial.keys()))
         ], axis=1, inplace=True)
-    # import pdb; pdb.set_trace()
 
     # 1-hot encode categorical cols that were not numericalized
     # (those with <= max_n_cat categories)
